@@ -1,6 +1,4 @@
-const BASE_URL =
-  import.meta.env.VITE_FORECAST_API_URL ??
-  "https://harshilforworks-forcast.hf.space";
+const BASE_URL = import.meta.env.VITE_FORECAST_API_URL;
 
 async function request(method, path, body) {
   try {

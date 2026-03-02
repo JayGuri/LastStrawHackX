@@ -325,13 +325,12 @@ async def google_oauth_callback(code: str = None, error: str = None):
         user["auth_provider"],
     )
 
-    # Redirect to frontend with token
-    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    # Ensure it redirects to the /login path so the Login component can catch it
-    if not frontend_url.endswith("/login"):
-        frontend_url = frontend_url.rstrip("/") + "/login"
-        
-    redirect_url = f"{frontend_url}?token={token}"
+    # Redirect to frontend with token.
+    # NOTE: We always redirect to the root URL (?token=...) so the pre-mount
+    # interception in frontend/src/main.jsx can catch it synchronously before
+    # React renders, regardless of which environment is running.
+    base = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    redirect_url = f"{base}?token={token}"
 
     return RedirectResponse(url=redirect_url)
 

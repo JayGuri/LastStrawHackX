@@ -1,14 +1,6 @@
-const INSIGHTS_BASE_URL =
-  import.meta.env.VITE_INSIGHTS_API_URL ??
-  "https://aish2005deshmukh-hackx-flood-backend.hf.space";
-
-const RISK_BASE_URL =
-  import.meta.env.VITE_RISK_API_URL ??
-  "https://aishwaryaaaaa-enhanced-risk-api.hf.space";
-
-const LIFELINE_BASE_URL =
-  import.meta.env.VITE_LIFELINE_API_URL ??
-  "https://harshilforworks-lifeline-engine.hf.space";
+const INSIGHTS_BASE_URL = import.meta.env.VITE_INSIGHTS_API_URL;
+const RISK_BASE_URL = import.meta.env.VITE_RISK_API_URL;
+const LIFELINE_BASE_URL = import.meta.env.VITE_LIFELINE_API_URL;
 
 async function request(baseUrl, method, path, body) {
   try {

@@ -59,7 +59,7 @@ export default function App() {
   const activeTab = useAppStore((s) => s.activeTab);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const showNotification = useAppStore((s) => s.showNotification);
-  const { isAuthenticated, handleOAuthCallback } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const fetchRuns = useInsightsStore((s) => s.fetchRuns);
 
   // Preload historical runs as soon as the user is authenticated,
@@ -73,18 +73,17 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [activeTab]);
 
-  // GLOBAL: Handle OAuth token from URL immediately when App loads
+  // Post-OAuth welcome notification.
+  // main.jsx already stored the token synchronously before React mounted,
+  // so we only need to surface the welcome toast here — no URL parsing.
   useEffect(() => {
-    const result = handleOAuthCallback();
-    if (result) {
-      showNotification(
-        `Welcome back, ${result.user.email.split("@")[0]}`,
-        "success",
-      );
-      // Ensure we immediately navigate back to the landing page as an authenticated user
-      setActiveTab("landing");
+    const oauthUser = window.__ambrosia_oauth_just_logged_in;
+    if (oauthUser) {
+      delete window.__ambrosia_oauth_just_logged_in;
+      showNotification(`Welcome, ${oauthUser.email.split("@")[0]}`, "success");
     }
-  }, [handleOAuthCallback, showNotification, setActiveTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Initialization: Read the current URL path to set the tab correctly on load
   useEffect(() => {

@@ -1,10 +1,11 @@
 """User model and database operations."""
 
+import logging
 import bcrypt
 from datetime import datetime
-from api.client import db
+from api.client import db, users_collection
 
-users_collection = db["users"]
+logger = logging.getLogger(__name__)
 
 
 class User:
@@ -12,21 +13,14 @@ class User:
 
     @staticmethod
     def create_user(email, password=None, subscription_level="free", auth_provider="local"):
-        """Create a new user document in MongoDB.
+        if users_collection is None:
+            raise RuntimeError("Database not available")
 
-        Args:
-            email: User email (unique)
-            password: Plain text password (will be hashed)
-            subscription_level: "free", "pro", or "enterprise"
-            auth_provider: "local" or "google"
-
-        Returns:
-            Inserted user document with id
-        """
-        # Hash password if provided
         hashed_password = None
         if password:
-            hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            hashed_password = bcrypt.hashpw(
+                password.encode("utf-8"), bcrypt.gensalt()
+            ).decode("utf-8")
 
         user_doc = {
             "email": email,
@@ -37,63 +31,36 @@ class User:
         }
 
         result = users_collection.insert_one(user_doc)
+        logger.info("[User.create_user] Created user id=%s email=%s", result.inserted_id, email)
         return users_collection.find_one({"_id": result.inserted_id})
 
     @staticmethod
     def find_by_email(email):
-        """Find user by email.
-
-        Args:
-            email: User email
-
-        Returns:
-            User document or None
-        """
+        if users_collection is None:
+            raise RuntimeError("Database not available")
         return users_collection.find_one({"email": email})
 
     @staticmethod
     def find_by_id(user_id):
-        """Find user by MongoDB ObjectId.
-
-        Args:
-            user_id: User MongoDB ObjectId
-
-        Returns:
-            User document or None
-        """
+        if users_collection is None:
+            raise RuntimeError("Database not available")
         from bson.objectid import ObjectId
-
         try:
             return users_collection.find_one({"_id": ObjectId(user_id)})
-        except Exception:
+        except Exception as exc:
+            logger.warning("[User.find_by_id] Invalid id=%s: %s", user_id, exc)
             return None
 
     @staticmethod
     def verify_password(stored_hash, plain_password):
-        """Verify a password against its bcrypt hash.
-
-        Args:
-            stored_hash: Bcrypt hash from database
-            plain_password: Plain text password to verify
-
-        Returns:
-            True if password matches, False otherwise
-        """
-        return bcrypt.checkpw(plain_password.encode("utf-8"), stored_hash.encode("utf-8"))
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), stored_hash.encode("utf-8")
+        )
 
     @staticmethod
     def user_to_dict(user_doc):
-        """Convert MongoDB user document to JSON-serializable dict.
-
-        Args:
-            user_doc: User document from MongoDB
-
-        Returns:
-            Dictionary with user info (password excluded)
-        """
         if not user_doc:
             return None
-
         return {
             "id": str(user_doc["_id"]),
             "email": user_doc["email"],
