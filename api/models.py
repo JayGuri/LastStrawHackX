@@ -1,11 +1,8 @@
 """User model and database operations."""
 
-import logging
 import bcrypt
 from datetime import datetime
 from api.client import db, users_collection
-
-logger = logging.getLogger(__name__)
 
 
 class User:
@@ -31,7 +28,6 @@ class User:
         }
 
         result = users_collection.insert_one(user_doc)
-        logger.info("[User.create_user] Created user id=%s email=%s", result.inserted_id, email)
         return users_collection.find_one({"_id": result.inserted_id})
 
     @staticmethod
@@ -47,8 +43,7 @@ class User:
         from bson.objectid import ObjectId
         try:
             return users_collection.find_one({"_id": ObjectId(user_id)})
-        except Exception as exc:
-            logger.warning("[User.find_by_id] Invalid id=%s: %s", user_id, exc)
+        except Exception:
             return None
 
     @staticmethod
