@@ -1,6 +1,15 @@
 import React, { useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import { useInsightsStore } from "../stores/insightsStore.js";
 import { RISK_COLORS } from "../data/districts.js";
 import RiskBadge from "../components/common/RiskBadge.jsx";
@@ -9,6 +18,7 @@ import GeoSearchInput from "../components/ui/GeoSearchInput.jsx";
 import CalendarPicker from "../components/ui/CalendarPicker.jsx";
 import { geocodeApi } from "../api/geocodeApi.js";
 import { generateInsightsReport } from "../utils/reports/generateInsightsReport.js";
+import { useAppStore } from "../stores/appStore.js";
 
 // ── Sub-Component: DataSourceBadge ──────────────────────────
 function DataSourceBadge() {
@@ -481,8 +491,11 @@ function LocationTrendChart({ locationRuns }) {
   const chartData = locationRuns
     .slice()
     .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-    .map(run => ({
-      date: new Date(run.timestamp).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+    .map((run) => ({
+      date: new Date(run.timestamp).toLocaleDateString("en", {
+        month: "short",
+        day: "numeric",
+      }),
       floodArea: run.flood_area_km2 ?? 0,
       floodPct: run.flood_percentage ?? 0,
     }));
@@ -505,24 +518,42 @@ function LocationTrendChart({ locationRuns }) {
         Location Trend
       </div>
       <ResponsiveContainer width="100%" height={200}>
-        <LineChart data={chartData} margin={{ top: 8, right: 20, left: -10, bottom: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(242,209,109,0.08)" />
+        <LineChart
+          data={chartData}
+          margin={{ top: 8, right: 20, left: -10, bottom: 20 }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="rgba(242,209,109,0.08)"
+          />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11, fontFamily: 'JetBrains Mono', fill: 'rgba(236,232,223,0.4)' }}
+            tick={{
+              fontSize: 11,
+              fontFamily: "JetBrains Mono",
+              fill: "rgba(236,232,223,0.4)",
+            }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fontSize: 11, fontFamily: 'JetBrains Mono', fill: 'rgba(236,232,223,0.4)' }}
+            tick={{
+              fontSize: 11,
+              fontFamily: "JetBrains Mono",
+              fill: "rgba(236,232,223,0.4)",
+            }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fontSize: 11, fontFamily: 'JetBrains Mono', fill: 'rgba(236,232,223,0.4)' }}
+            tick={{
+              fontSize: 11,
+              fontFamily: "JetBrains Mono",
+              fill: "rgba(236,232,223,0.4)",
+            }}
             axisLine={false}
             tickLine={false}
           />
@@ -530,10 +561,10 @@ function LocationTrendChart({ locationRuns }) {
           <Legend
             iconType="line"
             wrapperStyle={{
-              fontSize: '11px',
-              fontFamily: 'JetBrains Mono',
-              color: 'rgba(236,232,223,0.6)',
-              paddingTop: '16px',
+              fontSize: "11px",
+              fontFamily: "JetBrains Mono",
+              color: "rgba(236,232,223,0.6)",
+              paddingTop: "16px",
             }}
           />
           <Line
@@ -542,8 +573,8 @@ function LocationTrendChart({ locationRuns }) {
             dataKey="floodArea"
             stroke="#d4900a"
             strokeWidth={2}
-            dot={{ r: 4, fill: '#d4900a' }}
-            activeDot={{ r: 6, fill: '#d4900a' }}
+            dot={{ r: 4, fill: "#d4900a" }}
+            activeDot={{ r: 6, fill: "#d4900a" }}
             name="Flood Area (km²)"
           />
           <Line
@@ -552,8 +583,8 @@ function LocationTrendChart({ locationRuns }) {
             dataKey="floodPct"
             stroke="#4ab0d8"
             strokeWidth={2}
-            dot={{ r: 4, fill: '#4ab0d8' }}
-            activeDot={{ r: 6, fill: '#4ab0d8' }}
+            dot={{ r: 4, fill: "#4ab0d8" }}
+            activeDot={{ r: 6, fill: "#4ab0d8" }}
             name="Flood % "
           />
         </LineChart>
@@ -573,7 +604,8 @@ function AnalyzeForm({ onSubmit, isLoading }) {
   const [preEnd, setPreEnd] = React.useState("");
   const [postStart, setPostStart] = React.useState("");
   const [postEnd, setPostEnd] = React.useState("");
-  const [error, setError] = React.useState("");
+
+  const showNotification = useAppStore((s) => s.showNotification);
 
   const searchLocation = React.useCallback(async (q) => {
     clearTimeout(locationDebounce.current);
@@ -590,17 +622,64 @@ function AnalyzeForm({ onSubmit, isLoading }) {
   }, []);
 
   const handleSelectLocation = (item) => {
-    const primary = item.display_name.split(",")[0].trim();
+    // Keep City and Country to ensure accurate geocoding on the backend
+    const parts = item.display_name.split(",");
+    const primary =
+      parts.length > 1 ?
+        `${parts[0].trim()}, ${parts[parts.length - 1].trim()}`
+      : parts[0].trim();
     setLocation(primary);
     setLocationResults([]);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    setError("");
 
     if (!location || !preStart || !preEnd || !postStart || !postEnd) {
-      setError("All fields are required");
+      showNotification("All fields are required", "warning");
+      return;
+    }
+
+    // Satellite Data Lag Check (approx 4 days)
+    const lagDays = 4;
+    const today = new Date();
+    const limitDate = new Date(today.setDate(today.getDate() - lagDays));
+
+    const checkDate = (dString) => new Date(dString) > limitDate;
+
+    if (
+      checkDate(preStart) ||
+      checkDate(preEnd) ||
+      checkDate(postStart) ||
+      checkDate(postEnd)
+    ) {
+      showNotification(
+        `Satellite imagery has a ${lagDays}-day processing lag. Please select dates older than ${limitDate.toLocaleDateString()}.`,
+        "warning",
+      );
+      return;
+    }
+
+    // Minimum Window Width Check (15 days for reliable satellite revisit)
+    const minWindowDays = 15;
+    const getDiffDays = (start, end) => {
+      const s = new Date(start);
+      const e = new Date(end);
+      return Math.ceil(Math.abs(e - s) / (1000 * 60 * 60 * 24));
+    };
+
+    if (getDiffDays(preStart, preEnd) < minWindowDays) {
+      showNotification(
+        `Pre-event window must be at least ${minWindowDays} days for reliable satellite coverage.`,
+        "warning",
+      );
+      return;
+    }
+    if (getDiffDays(postStart, postEnd) < minWindowDays) {
+      showNotification(
+        `Post-event window must be at least ${minWindowDays} days for reliable satellite coverage.`,
+        "warning",
+      );
       return;
     }
 
@@ -680,21 +759,6 @@ function AnalyzeForm({ onSubmit, isLoading }) {
             <CalendarPicker label="" value={postEnd} onChange={setPostEnd} />
           </div>
         </div>
-
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            className="overflow-hidden text-[10px] font-mono px-3 py-2"
-            style={{
-              background: "rgba(216,64,64,0.15)",
-              color: "#d84040",
-              border: "1px solid rgba(216,64,64,0.3)",
-            }}
-          >
-            {error}
-          </motion.div>
-        )}
 
         {/* Submit Button */}
         <button
@@ -874,7 +938,10 @@ function AnalysisThinkingPanel() {
           animate={{ opacity: [0.4, 1, 0.4] }}
           transition={{ duration: 2, repeat: Infinity }}
         >
-          <div className="w-2 h-2 rounded-full" style={{ background: "#f2d16d" }} />
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ background: "#f2d16d" }}
+          />
         </motion.div>
       </div>
 
@@ -993,7 +1060,7 @@ export default function FloodInsights() {
   } = useInsightsStore();
 
   const [analyzeLoading, setAnalyzeLoading] = React.useState(false);
-  const [analyzeError, setAnalyzeError] = React.useState("");
+  const showNotification = useAppStore((s) => s.showNotification);
 
   useEffect(() => {
     fetchRuns();
@@ -1002,7 +1069,7 @@ export default function FloodInsights() {
   // Group runs by location for temporal chart
   const runsByLocation = React.useMemo(() => {
     const map = {};
-    runs.forEach(run => {
+    runs.forEach((run) => {
       const key = run.location_name?.split(",")[0]?.trim() ?? "Unknown";
       if (!map[key]) map[key] = [];
       map[key].push(run);
@@ -1015,7 +1082,6 @@ export default function FloodInsights() {
 
   const handleAnalyzeSubmit = async (formData) => {
     setAnalyzeLoading(true);
-    setAnalyzeError("");
 
     try {
       // Call the analyze endpoint from insightsApi
@@ -1031,13 +1097,30 @@ export default function FloodInsights() {
       const { data: result, error } = await insightsApi.analyze(payload);
 
       if (error) {
-        setAnalyzeError(error);
+        // Intercept generic 500 and provide context-aware help
+        if (error.includes("500")) {
+          showNotification(
+            "Backend Processing Error: This usually happens if there is no satellite coverage for the selected dates/location. Try an older date range.",
+            "error",
+          );
+        } else {
+          showNotification(error, "error");
+        }
       } else {
+        showNotification("Analysis triggered successfully", "success");
         // Refresh the runs list to show the new analysis
         await fetchRuns();
       }
     } catch (err) {
-      setAnalyzeError(err?.message || "Analysis failed");
+      const msg = err?.message || "";
+      if (msg.includes("500") || msg.includes("Internal Server Error")) {
+        showNotification(
+          "The analysis pipeline failed. Please ensure your dates are at least 4 days in the past.",
+          "error",
+        );
+      } else {
+        showNotification(msg || "Analysis failed", "error");
+      }
     } finally {
       setAnalyzeLoading(false);
     }
@@ -1139,7 +1222,9 @@ export default function FloodInsights() {
           <div className="lg:col-span-2 overflow-y-auto lg:max-h-[calc(100vh-10rem)] pr-1">
             <AnimatePresence mode="wait">
               {analyzeLoading && <AnalysisThinkingPanel key="thinking" />}
-              {!analyzeLoading && !selectedRunId && !detailLoading && <EmptyState key="empty" />}
+              {!analyzeLoading && !selectedRunId && !detailLoading && (
+                <EmptyState key="empty" />
+              )}
               {!analyzeLoading && detailLoading && (
                 <motion.div
                   key="loading"
@@ -1269,11 +1354,13 @@ export default function FloodInsights() {
 
                   {/* Location Trend Chart — if 3+ runs for this location */}
                   {(() => {
-                    const locationKey = selectedRun?.location_name?.split(",")[0]?.trim();
+                    const locationKey = selectedRun?.location_name
+                      ?.split(",")[0]
+                      ?.trim();
                     const locationRuns = runsByLocation[locationKey] ?? [];
-                    return locationRuns.length >= 3 ? (
-                      <LocationTrendChart locationRuns={locationRuns} />
-                    ) : null;
+                    return locationRuns.length >= 3 ?
+                        <LocationTrendChart locationRuns={locationRuns} />
+                      : null;
                   })()}
 
                   {/* Change detection image */}

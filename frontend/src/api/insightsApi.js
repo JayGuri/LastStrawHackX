@@ -15,10 +15,15 @@ async function request(baseUrl, method, path, body) {
     if (!res.ok) {
       let message = `HTTP ${res.status}`;
       try {
-        const json = await res.json();
-        message = json?.detail ?? json?.error ?? message;
+        const text = await res.text();
+        try {
+          const json = JSON.parse(text);
+          message = json?.detail ?? json?.error ?? message;
+        } catch {
+          message = text || message;
+        }
       } catch {
-        // non-JSON error body
+        // failed to read text
       }
       return { data: null, error: message };
     }
